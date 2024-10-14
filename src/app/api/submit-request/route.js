@@ -1,52 +1,36 @@
 import { NextResponse } from 'next/server';
-import { Pool } from 'pg';
-import amqp from 'amqplib';
-import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
-import process from "next/dist/build/webpack/loaders/resolve-url-loader/lib/postcss";
+import { query } from '/lib/db.js'
+import { uploadImage } from '/lib/storage.js';
+import { sendToQueue } from '/lib/rabbitmq.js';
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+export async function POST(request) {
+    const formData = await request.formData();
+    const file = formData.get('image');
+    const email = formData.get('email');
 
-const upload = multer({ dest: 'uploads/' });
+    if (!file || !email) {
+        return NextResponse.json({ error: 'Image and email are required.' }, { status: 400 });
+    }
 
-export const POST = async (req) => {
-    return new Promise((resolve, reject) => {
-        upload.single('image')(req, {}, async (err) => {
-            if (err) {
-                return resolve(NextResponse.json({ error: 'File upload failed' }, { status: 500 }));
-            }
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const fileName = file.name;
 
-            const { email } = req.body;
-            const file = req.file;
+    // Step 1: Upload to Object Storage
+    const imageUrl = await uploadImage(fileBuffer, fileName);
+    if (!imageUrl) {
+        return NextResponse.json({ error: 'Failed to store image.' }, { status: 500 });
+    }
 
-            if (!file) {
-                return resolve(NextResponse.json({ error: 'No image file provided' }, { status: 400 }));
-            }
+    // Step 2: Save to Database
+    const result = await query(
+        'INSERT INTO images (email, status) VALUES ($1, $2) RETURNING id',
+        [email, imageUrl, 'pending']
+    );
 
-            const requestId = uuidv4();
+    const requestId = result.rows[0].id;
 
-            try {
-                // Save request to PostgreSQL
-                const client = await pool.connect();
-                await client.query(
-                    `INSERT INTO requests (id, email, status) VALUES ($1, $2, 'pending')`,
-                    [requestId, email]
-                );
-                client.release();
+    // Step 3: Send to RabbitMQ for processing
+    sendToQueue('image_processing_queue', JSON.stringify({ requestId }));
 
-                // Queue the request for processing in RabbitMQ
-                const connection = await amqp.connect(process.env.CLOUDAMQP_URL);
-                const channel = await connection.createChannel();
-                await channel.assertQueue('image_processing_queue', { durable: true });
-                await channel.sendToQueue('image_processing_queue', Buffer.from(JSON.stringify({ requestId, file })));
-
-                resolve(NextResponse.json({ requestId }, { status: 201 }));
-            } catch (err) {
-                console.error(err);
-                resolve(NextResponse.json({ error: 'Failed to process request' }, { status: 500 }));
-            }
-        });
-    });
-};
+    return NextResponse.json({ message: 'Request registered!', requestId });
+}
