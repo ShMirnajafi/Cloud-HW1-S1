@@ -1,6 +1,5 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
-// Configure the S3 Client with Liara Object Storage credentials
 const s3Client = new S3Client({
     region: 'us-east-1',
     endpoint: process.env.LIARA_OBJECT_STORAGE_URL,

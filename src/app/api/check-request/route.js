@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@/lib/db';  // Import the sql instance
+import { sql } from '@/lib/db';
 
 export async function POST(req) {
     try {

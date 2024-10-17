@@ -1,9 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 
-// Initialize Neon database connection
 export const sql = neon(process.env.DATABASE_URL);
 
-// Function to ensure the requests table exists
 export const ensureTableExists = async () => {
     const createTableQuery = `
     CREATE TABLE IF NOT EXISTS requests (
