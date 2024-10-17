@@ -1,18 +1,30 @@
 import { NextResponse } from 'next/server';
-import { query } from '/lib/db';
+import { getRequestStatusById } from '@/utils/db';
 
-export async function GET(request) {
-    const { searchParams } = new URL(request.url);
-    const requestId = searchParams.get('id');
+export async function POST(req) {
+    try {
+        const { id } = await req.json();
 
-    if (!requestId) {
-        return NextResponse.json({ error: 'Request ID is required.' }, { status: 400 });
+        if (!id) {
+            return NextResponse.json({ error: 'Request ID is required' }, { status: 400 });
+        }
+
+        // Retrieve the status and new_image_url from the database
+        const requestStatus = await getRequestStatusById(id);
+
+        if (!requestStatus) {
+            return NextResponse.json({ error: 'Request not found' }, { status: 404 });
+        }
+
+        const { status, new_image_url } = requestStatus;
+
+        // Return the status and, if available, the new image URL
+        return NextResponse.json({
+            status,
+            newImageUrl: status === 'done' ? new_image_url : null,
+        });
+    } catch (error) {
+        console.error(error);
+        return NextResponse.json({ error: 'An error occurred' }, { status: 500 });
     }
-
-    const result = await query('SELECT * FROM images WHERE id = $1', [requestId]);
-    if (result.rows.length === 0) {
-        return NextResponse.json({ error: 'Request not found.' }, { status: 404 });
-    }
-
-    return NextResponse.json(result.rows[0]);
 }

@@ -1,36 +1,37 @@
 import { NextResponse } from 'next/server';
-import { query } from '/lib/db.js'
-import { uploadImage } from '/lib/storage.js';
-import { sendToQueue } from '/lib/rabbitmq.js';
+import { uploadToS3 } from '@/utils/s3';
+import { query } from '@/utils/db';
+import { publishToQueue } from '@/utils/rabbitmq';
+import { v4 as uuidv4 } from 'uuid';
 
-export async function POST(request) {
-    const formData = await request.formData();
-    const file = formData.get('image');
-    const email = formData.get('email');
+export async function POST(req) {
+    try {
+        const { email, image } = await req.json();
+        if (!email || !image) {
+            return NextResponse.json({ error: 'Email and image are required' }, { status: 400 });
+        }
 
-    if (!file || !email) {
-        return NextResponse.json({ error: 'Image and email are required.' }, { status: 400 });
+        // Generate unique filename
+        const fileName = `${uuidv4()}.jpg`;
+
+        // Upload image to object storage
+        const imageBuffer = Buffer.from(image, 'base64');
+        const s3Response = await uploadToS3(imageBuffer, fileName);
+        const imageUrl = s3Response.Location;
+
+        // Save request info in PostgreSQL
+        const result = await query(
+            'INSERT INTO requests (email, status, image_url) VALUES ($1, $2, $3) RETURNING id',
+            [email, 'pending', imageUrl]
+        );
+        const requestId = result.rows[0].id;
+
+        // Send message to RabbitMQ queue for further processing
+        await publishToQueue('image_processing', { requestId, imageUrl });
+
+        return NextResponse.json({ requestId, message: 'Image uploaded successfully' });
+    } catch (error) {
+        console.error(error);
+        return NextResponse.json({ error: 'An error occurred' }, { status: 500 });
     }
-
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const fileName = file.name;
-
-    // Step 1: Upload to Object Storage
-    const imageUrl = await uploadImage(fileBuffer, fileName);
-    if (!imageUrl) {
-        return NextResponse.json({ error: 'Failed to store image.' }, { status: 500 });
-    }
-
-    // Step 2: Save to Database
-    const result = await query(
-        'INSERT INTO images (email, status) VALUES ($1, $2) RETURNING id',
-        [email, imageUrl, 'pending']
-    );
-
-    const requestId = result.rows[0].id;
-
-    // Step 3: Send to RabbitMQ for processing
-    sendToQueue('image_processing_queue', JSON.stringify({ requestId }));
-
-    return NextResponse.json({ message: 'Request registered!', requestId });
 }
