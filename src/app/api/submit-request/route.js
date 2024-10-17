@@ -37,7 +37,7 @@ export async function POST(req) {
         const requestId = result[0].id;
 
         // Send the image and request ID to RabbitMQ for further processing
-        await publishToQueue('image_processing', { requestId, image: buffer });
+        await publishToQueue('image_processing', { requestId, imageUrl });
 
         return NextResponse.json({ requestId, message: 'Image uploaded successfully', imageUrl });
     } catch (error) {

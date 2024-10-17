@@ -1,15 +1,16 @@
 import amqp from 'amqplib';
 
-const rabbitUrl = process.env.CLOUDAMQP_URL;
-
-export const publishToQueue = async (queue, message) => {
-    const connection = await amqp.connect(rabbitUrl);
-    const channel = await connection.createChannel();
-
-    await channel.assertQueue(queue, { durable: true });
-    channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)), { persistent: true });
-
-    setTimeout(() => {
-        connection.close();
-    }, 500);
-};
+export async function publishToQueue(queue, message) {
+    try {
+        const connection = await amqp.connect(process.env.CLOUDAMQP_URL);
+        const channel = await connection.createChannel();
+        await channel.assertQueue(queue, { durable: true });
+        channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)));
+        console.log(`Message sent to queue ${queue}:`, message);
+        await channel.close();
+        await connection.close();
+    } catch (error) {
+        console.error('Error publishing to RabbitMQ queue:', error);
+        throw error;
+    }
+}
