@@ -1,22 +1,28 @@
 import { NextResponse } from 'next/server';
-import { getRequestStatusById } from '@/lib/db';
+import { sql } from '@/lib/db';  // Import the sql instance
 
 export async function POST(req) {
     try {
-        const { id } = await req.json();
+        // Parse the form-data request
+        const formData = await req.formData();
+        const id = formData.get('id');
 
         if (!id) {
             return NextResponse.json({ error: 'Request ID is required' }, { status: 400 });
         }
 
-        // Retrieve the status and new_image_url from the database
-        const requestStatus = await getRequestStatusById(id);
+        // Query the database for the request status and new_image_url
+        const result = await sql`
+            SELECT status, new_image_url
+            FROM requests
+            WHERE id = ${id}
+        `;
 
-        if (!requestStatus) {
+        if (result.length === 0) {
             return NextResponse.json({ error: 'Request not found' }, { status: 404 });
         }
 
-        const { status, new_image_url } = requestStatus;
+        const { status, new_image_url } = result[0];
 
         // Return the status and, if available, the new image URL
         return NextResponse.json({

@@ -1,6 +1,6 @@
 import amqp from 'amqplib';
 
-const rabbitUrl = 'amqps://bpednnrj:1nD3uHw2DlfgF5dIR9nw2go5YVGYtwvO@jackal.rmq.cloudamqp.com/bpednnrj';
+const rabbitUrl = process.env.CLOUDAMQP_URL;
 
 export const publishToQueue = async (queue, message) => {
     const connection = await amqp.connect(rabbitUrl);

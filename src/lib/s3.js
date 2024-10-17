@@ -1,19 +1,39 @@
-import AWS from 'aws-sdk';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
-const s3 = new AWS.S3({
-    endpoint: 'https://storage.c2.liara.space',
-    accessKeyId: '6csqpkber0d5e1q9',
-    secretAccessKey: '6ac31b2d-c339-4984-bcf7-8406a6c890e3',
-    s3ForcePathStyle: true,
+// Configure the S3 Client with Liara Object Storage credentials
+const s3Client = new S3Client({
+    region: 'us-east-1',
+    endpoint: process.env.LIARA_OBJECT_STORAGE_URL,
+    credentials: {
+        accessKeyId: process.env.LIARA_ACCESS_KEY,
+        secretAccessKey: process.env.LIARA_SECRET_KEY,
+    },
+    forcePathStyle: true,
 });
 
-export const uploadToS3 = (fileBuffer, fileName) => {
-    const params = {
-        Bucket: 'image-bucket',
+
+export async function uploadFile(fileName, fileBuffer) {
+    const uploadParams = {
+        Bucket: process.env.LIARA_BUCKET_NAME,
         Key: fileName,
         Body: fileBuffer,
-        ContentType: 'image/jpeg',
     };
 
-    return s3.upload(params).promise();
-};
+    // Upload the file using AWS SDK v3
+    await s3Client.send(new PutObjectCommand(uploadParams));
+
+    // Return the generated file URL
+    return `${process.env.LIARA_OBJECT_STORAGE_URL}/${process.env.LIARA_BUCKET_NAME}/${fileName}`;
+}
+
+export async function getSignedUrl(fileName, expiresIn = 3600) {
+    const command = new GetObjectCommand({
+        Bucket: process.env.LIARA_BUCKET_NAME,
+        Key: fileName,
+    });
+
+    // Generate a signed URL for the file
+    const url = await s3Client.getSignedUrl(command, { expiresIn });
+
+    return url;
+}
