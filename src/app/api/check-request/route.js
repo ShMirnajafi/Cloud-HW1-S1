@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRequestStatusById } from '@/utils/db';
+import { getRequestStatusById } from '@/lib/db';
 
 export async function POST(req) {
     try {
