@@ -15,20 +15,15 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Email and image are required' }, { status: 400 });
         }
 
-        // Convert the image file to a buffer
         const arrayBuffer = await imageFile.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
-        // Generate a unique filename for the uploaded image
         const fileName = `${uuidv4()}_${imageFile.name}`;
 
-        // Upload the image to Liara Object Storage using s3.js
         const imageUrl = await uploadFile(fileName, buffer);
 
-        // Ensure the table exists in the database
         await ensureTableExists();
 
-        // Insert the request into the database
         const result = await sql`
       INSERT INTO requests (email, status, image_url) 
       VALUES (${email}, 'pending', ${imageUrl}) 
@@ -36,7 +31,6 @@ export async function POST(req) {
     `;
         const requestId = result[0].id;
 
-        // Send the image and request ID to RabbitMQ for further processing
         await publishToQueue('image_processing', { requestId, imageUrl });
 
         return NextResponse.json({ requestId, message: 'Image uploaded successfully', imageUrl });

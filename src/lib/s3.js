@@ -18,21 +18,7 @@ export async function uploadFile(fileName, fileBuffer) {
         Body: fileBuffer,
     };
 
-    // Upload the file using AWS SDK v3
     await s3Client.send(new PutObjectCommand(uploadParams));
 
-    // Return the generated file URL
     return `${process.env.LIARA_OBJECT_STORAGE_URL}/${process.env.LIARA_BUCKET_NAME}/${fileName}`;
-}
-
-export async function getSignedUrl(fileName, expiresIn = 3600) {
-    const command = new GetObjectCommand({
-        Bucket: process.env.LIARA_BUCKET_NAME,
-        Key: fileName,
-    });
-
-    // Generate a signed URL for the file
-    const url = await s3Client.getSignedUrl(command, { expiresIn });
-
-    return url;
 }

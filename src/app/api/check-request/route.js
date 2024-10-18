@@ -3,7 +3,6 @@ import { sql } from '@/lib/db';
 
 export async function POST(req) {
     try {
-        // Parse the form-data request
         const formData = await req.formData();
         const id = formData.get('id');
 
@@ -11,7 +10,6 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Request ID is required' }, { status: 400 });
         }
 
-        // Query the database for the request status and new_image_url
         const result = await sql`
             SELECT status, new_image_url
             FROM requests
@@ -24,7 +22,6 @@ export async function POST(req) {
 
         const { status, new_image_url } = result[0];
 
-        // Return the status and, if available, the new image URL
         return NextResponse.json({
             status,
             newImageUrl: status === 'done' ? new_image_url : null,
